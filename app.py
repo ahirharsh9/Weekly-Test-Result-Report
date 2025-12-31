@@ -5,7 +5,7 @@ import math
 import io
 import requests
 import datetime
-from PIL import Image, UnidentifiedImageError # Added for validation
+from PIL import Image, UnidentifiedImageError
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.units import mm
@@ -17,15 +17,15 @@ from reportlab.lib.utils import ImageReader
 TG_LINK = "https://t.me/MurlidharAcademy"
 IG_LINK = "https://www.instagram.com/murlidhar_academy_official/"
 
-# ✅ UPDATED Google Drive Image ID (From your new link)
+# Google Drive Image ID
 DEFAULT_DRIVE_ID = "1QDEhCo7_ZEfZk8a2UhLWVngmidzfcvfi" 
 
 TITLE_Y_mm_from_top = 63.5
 TABLE_SPACE_AFTER_TITLE_mm = 16
-LEFT_MARGIN_mm = 18
-RIGHT_MARGIN_mm = 18
+LEFT_MARGIN_mm = 15 # Margins slightly reduced to give more space for table
+RIGHT_MARGIN_mm = 15
 PAGE_NO_Y_mm = 8
-ROWS_PER_PAGE = 23
+ROWS_PER_PAGE = 25 # Adjusted rows
 
 # ------------- HELPERS -------------
 def get_drive_url(file_id):
@@ -35,16 +35,14 @@ def get_drive_url(file_id):
 def download_default_bg(file_id):
     try:
         url = get_drive_url(file_id)
-        # Verify file is accessible
         response = requests.get(url, allow_redirects=True)
         if response.status_code == 200:
-            # ✅ SAFETY CHECK: Validate it is actually an image
             try:
                 img = Image.open(io.BytesIO(response.content))
-                img.verify() # Checks if it's a valid image
+                img.verify()
                 return io.BytesIO(response.content)
             except Exception:
-                return None # Not an image (likely HTML error from Google)
+                return None
         else:
             return None
     except:
@@ -74,6 +72,7 @@ def sanitize_df(df):
 
 # ✅ SMART COLOR LOGIC
 def get_smart_row_color(p, is_even_row):
+    # Lighter shades for background rows
     if p >= 80: 
         return colors.HexColor("#E8F5E9") if is_even_row else colors.HexColor("#C8E6C9")
     if p >= 50: 
@@ -83,8 +82,7 @@ def get_smart_row_color(p, is_even_row):
 SUMMARY_HEADER_COLORS = {
     "METRICS": colors.HexColor("#1976D2"),
     "SUBJECT AVERAGES": colors.HexColor("#8E24AA"),
-    "TOP 5 RANKERS": colors.HexColor("#2E7D32"),
-    "BOTTOM 5 PERFORMERS": colors.HexColor("#C62828")
+    "TOP 5 RANKERS": colors.HexColor("#2E7D32")
 }
 
 # ------------- STREAMLIT UI -------------
@@ -98,7 +96,6 @@ c_title, c_file = st.columns(2)
 today_str = datetime.date.today().strftime('%d/%m/%Y')
 fname_date = datetime.date.today().strftime('%d-%m-%Y')
 
-# Prefilled Text
 default_title = f"MB WEEKLY TEST RESULT | DATE: {today_str}"
 custom_title = c_title.text_input("Enter Main Title (Header)", default_title)
 
@@ -109,9 +106,8 @@ final_filename = output_filename_input.strip()
 if not final_filename.lower().endswith(".pdf"):
     final_filename += ".pdf"
 
-# Smart Subject Setup
 st.subheader("Subject Setup")
-num_subjects = st.number_input("How many Subjects?", min_value=1, max_value=10, value=6) # Default 6 based on your usage
+num_subjects = st.number_input("How many Subjects?", min_value=1, max_value=10, value=6)
 
 SUBJECT_CONFIG = []
 st.write("Enter Details for each Subject:")
@@ -122,25 +118,22 @@ cols_head[1].markdown("**Start Q**")
 cols_head[2].markdown("**End Q**")
 cols_head[3].markdown("**Max Marks**")
 
-# Your specific defaults
 defaults = [
     ("Maths", 1, 10, 10),
     ("Reasoning", 11, 20, 10),
     ("Science", 21, 30, 10),
     ("History", 31, 40, 10),
     ("Gujarati", 41, 50, 10),
-    ("CA", 51, 60, 10) # Fixed logical error: End Q must be > Start Q (51->60)
+    ("CA", 51, 60, 10)
 ]
 
 for i in range(int(num_subjects)):
     c1, c2, c3, c4 = st.columns([3, 1.5, 1.5, 1.5])
     
-    # Defaults logic
     d_name, d_s, d_e, d_m = "", 1, 10, 10
     if i < len(defaults):
         d_name, d_s, d_e, d_m = defaults[i]
     elif i > 0:
-        # Auto increment logic for new rows
         prev_end = SUBJECT_CONFIG[-1]["range"][1] if SUBJECT_CONFIG else 0
         d_s = prev_end + 1
         d_e = d_s + 9
@@ -172,31 +165,27 @@ if use_custom_bg:
     uploaded_img = st.file_uploader("Upload Template Image", type=['png', 'jpg', 'jpeg'])
     if uploaded_img: bg_file_data = uploaded_img.getbuffer()
 else:
-    # Auto-load default
     if 'default_bg' not in st.session_state:
         with st.spinner("Fetching background..."):
             st.session_state['default_bg'] = download_default_bg(DEFAULT_DRIVE_ID)
     
     if st.session_state['default_bg']:
         bg_file_data = st.session_state['default_bg'].read()
-        st.session_state['default_bg'].seek(0) # Reset pointer
+        st.session_state['default_bg'].seek(0)
         st.success("✅ Default Background Loaded!")
     else:
-        st.warning("⚠️ Background could not be loaded (Check Drive Permissions). Generating Plain PDF.")
+        st.warning("⚠️ Background could not be loaded. Generating Plain PDF.")
 
 # --- PROCESS ---
 if uploaded_csv is not None and SUBJECT_CONFIG:
     
     if st.button("Generate PDF 🚀", type="primary"):
         
-        # ✅ FIX: Handle case where image is corrupted or missing
         TEMPLATE_IMG = None
         if bg_file_data:
             try:
-                # Validate one last time
                 test_img = Image.open(io.BytesIO(bg_file_data))
                 test_img.verify()
-                # Re-open for ReportLab
                 TEMPLATE_IMG = ImageReader(io.BytesIO(bg_file_data))
             except Exception as e:
                 st.warning(f"⚠️ Image Error: {e}. Using white background.")
@@ -214,7 +203,6 @@ if uploaded_csv is not None and SUBJECT_CONFIG:
             names = raw[name_col].astype(str).str.strip() if name_col else pd.Series([f"Student {i+1}" for i in range(len(raw))])
 
         earned_cols_list, earned_index_map = detect_earned_cols(raw.columns)
-
         TOTAL_MAX = sum([s['max'] for s in SUBJECT_CONFIG])
         
         def sum_subject_from_map(row, start_q, end_q):
@@ -261,14 +249,23 @@ if uploaded_csv is not None and SUBJECT_CONFIG:
         subj_keys = [s['name'] for s in SUBJECT_CONFIG]
         header = ["No","Rank","Student Name"] + subj_keys + ["Total","%"]
         
+        # ✅ Auto Width Logic Improved
         max_name_len = max(df['Name'].astype(str).map(len).max(), 12)
-        u_no, u_rank, u_name = 3.0, 3.0, max_name_len * 0.65
-        u_subj, u_total, u_pct = 4.0, 4.5, 4.5
+        
+        # Increased units for better spacing
+        u_no, u_rank, u_name = 3.2, 3.2, max_name_len * 0.8 # Name gets more space
+        u_subj, u_total, u_pct = 4.2, 5.0, 5.0
+        
         total_units = u_no + u_rank + u_name + (u_subj * len(subj_keys)) + u_total + u_pct
         
         col_widths = [
-            (u_no/total_units)*TABLE_WIDTH, (u_rank/total_units)*TABLE_WIDTH, (u_name/total_units)*TABLE_WIDTH
-        ] + [(u_subj/total_units)*TABLE_WIDTH]*len(subj_keys) + [(u_total/total_units)*TABLE_WIDTH, (u_pct/total_units)*TABLE_WIDTH]
+            (u_no/total_units)*TABLE_WIDTH, 
+            (u_rank/total_units)*TABLE_WIDTH, 
+            (u_name/total_units)*TABLE_WIDTH
+        ] + [(u_subj/total_units)*TABLE_WIDTH]*len(subj_keys) + [
+            (u_total/total_units)*TABLE_WIDTH, 
+            (u_pct/total_units)*TABLE_WIDTH
+        ]
 
         def build_table_data(page_df, page_index):
             data = [header]
@@ -293,21 +290,28 @@ if uploaded_csv is not None and SUBJECT_CONFIG:
             data = build_table_data(page_df, page_index)
             t = Table(data, colWidths=col_widths, repeatRows=1)
             
-            f_size = 8.5 if len(subj_keys) <= 4 else 7.0
-            if len(subj_keys) >= 6: f_size = 6.0 # Adjust for 6 subjects
+            # ✅ Bigger Fonts
+            f_size = 9.5
+            if len(subj_keys) > 4: f_size = 8.5
+            if len(subj_keys) >= 6: f_size = 7.5
             
             style = TableStyle([
                 ('GRID',(0,0),(-1,-1),0.25,colors.HexColor("#666666")),
                 ('BACKGROUND',(0,0),(-1,0),colors.HexColor("#0f5f9a")),
                 ('TEXTCOLOR',(0,0),(-1,0),colors.white),
-                ('FONT',(0,0),(-1,0),'Helvetica-Bold'),
-                ('ALIGN',(0,0),(-1,0),'CENTER'),
-                ('ALIGN',(0,1),(-1,-1),'CENTER'),
-                ('ALIGN',(2,1),(2,-1),'LEFT'),
+                ('FONT',(0,0),(-1,0),'Helvetica-Bold'), # Header Bold
+                
+                # ✅ Alignment Fixes
+                ('ALIGN',(0,0),(-1,0),'CENTER'), # Header Center
+                ('ALIGN',(0,1),(-1,-1),'CENTER'), # All Data Center Default
+                ('ALIGN',(2,1),(2,-1),'LEFT'),   # Name Column Left (Index 2)
+                
+                # ✅ Vertical Center
                 ('VALIGN',(0,0),(-1,-1),'MIDDLE'),
+                
                 ('FONTSIZE',(0,0),(-1,-1), f_size),
-                ('LEFTPADDING',(0,0),(-1,-1),2),
-                ('RIGHTPADDING',(0,0),(-1,-1),2),
+                ('LEFTPADDING',(0,0),(-1,-1),3),
+                ('RIGHTPADDING',(0,0),(-1,-1),3),
             ])
 
             for i in range(1, len(data)):
@@ -374,10 +378,7 @@ if uploaded_csv is not None and SUBJECT_CONFIG:
             rem = ["Outstanding", "Excellent", "Very Good", "Good Effort", "Good Effort"][min(i,4)]
             summary_rows.append([f"#{i+1}  {r['Name']}", f"{int(r['Total'])}/{TOTAL_MAX}  ({float(r['Percentage']):.1f}%)", rem])
 
-        summary_rows.append(["BOTTOM 5 PERFORMERS", "", ""])
-        bot5 = df.sort_values(by=["Total","Percentage"], ascending=[True, True]).head(5).reset_index(drop=True)
-        for _, r in bot5.iterrows(): 
-            summary_rows.append([f"#{int(r['Rank'])}  {r['Name']}", f"{int(r['Total'])}/{TOTAL_MAX}  ({float(r['Percentage']):.1f}%)", "Needs Hard Work"])
+        # ✅ Bottom 5 Removed
 
         col1_w, col2_w = 75*mm, 45*mm
         consol_table = Table(summary_rows, colWidths=[col1_w, col2_w, TABLE_WIDTH - (col1_w + col2_w)], repeatRows=1)
@@ -404,11 +405,21 @@ if uploaded_csv is not None and SUBJECT_CONFIG:
                 consol_style.add('TEXTCOLOR',(0,i),(-1,i), colors.white)
                 consol_style.add('FONT',(0,i),(-1,i),'Helvetica-Bold')
             else:
+                # ✅ SUMMARY COLOR FIX
                 try:
                     val = str(row[1])
+                    c_code = None
                     if '(' in val and '%' in val:
                         pct = float(val.split('(')[1].replace('%)',''))
                         c_code = "#C8E6C9" if pct>=80 else "#FFF9C4" if pct>=50 else "#FFCDD2"
+                    elif '/' in val: # Catch cases like "8.5/10"
+                        nums = val.split('/')
+                        if len(nums) == 2:
+                            n, d = float(nums[0]), float(nums[1])
+                            pct = (n/d)*100 if d > 0 else 0
+                            c_code = "#C8E6C9" if pct>=80 else "#FFF9C4" if pct>=50 else "#FFCDD2"
+                    
+                    if c_code:
                         consol_style.add('BACKGROUND',(1,i),(1,i), colors.HexColor(c_code))
                 except: pass
 
