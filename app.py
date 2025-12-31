@@ -16,8 +16,8 @@ from reportlab.lib.utils import ImageReader
 TG_LINK = "https://t.me/MurlidharAcademy"
 IG_LINK = "https://www.instagram.com/murlidhar_academy_official/"
 
-# Default Google Drive Image ID
-DEFAULT_DRIVE_ID = "1X-L2J7D5-VLJka9x_XKMI8ZKoLd4iJsF" 
+# ✅ UPDATED Google Drive Image ID (New Link provided)
+DEFAULT_DRIVE_ID = "1QDEhCo7_ZEfZk8a2UhLWVngmidzfcvfi" 
 
 TITLE_Y_mm_from_top = 63.5
 TABLE_SPACE_AFTER_TITLE_mm = 16
@@ -81,51 +81,68 @@ SUMMARY_HEADER_COLORS = {
 }
 
 # ------------- STREAMLIT UI -------------
-st.set_page_config(page_title="Murlidhar Result Generator", page_icon="📝", layout="centered")
-st.title("📝 Murlidhar Academy Result Generator")
+# ✅ UPDATED Page Title
+st.set_page_config(page_title="Murlidhar Academy Weekly Result Report Generator", page_icon="📝", layout="centered")
+st.title("📝 Murlidhar Academy Weekly Result Report Generator")
 
 # --- 1. CONFIGURATION ---
 st.header("1. Test Configuration")
 
 c_title, c_file = st.columns(2)
 today_str = datetime.date.today().strftime('%d/%m/%Y')
-default_title = f"WEEKLY TEST RESULT | DATE: {today_str}"
+fname_date = datetime.date.today().strftime('%d-%m-%Y')
+
+# ✅ UPDATED Prefilled Text
+default_title = f"MB WEEKLY TEST RESULT | DATE: {today_str}"
 custom_title = c_title.text_input("Enter Main Title (Header)", default_title)
 
-default_filename = f"MURLIDHAR RESULT {datetime.date.today().strftime('%d-%m-%Y')}"
+default_filename = f"MB MURLIDHAR WEEKLY TEST {fname_date} RESULT"
 output_filename_input = c_file.text_input("Output PDF Filename", default_filename)
 
 final_filename = output_filename_input.strip()
 if not final_filename.lower().endswith(".pdf"):
     final_filename += ".pdf"
 
+# ✅ UPDATED Smart Subject Setup
 st.subheader("Subject Setup")
-st.info("Enter subjects in this format: `Name:StartQ-EndQ=MaxMarks` (One per line)")
+num_subjects = st.number_input("How many Subjects?", min_value=1, max_value=10, value=2)
 
-# ✅ TEXT AREA INPUT (From Colab Logic)
-default_subjects = "Maths:1-25=25\nReasoning:26-50=25"
-subject_text = st.text_area("Define Subjects", value=default_subjects, height=100)
-
-# Parse Subjects
 SUBJECT_CONFIG = []
-lines = [ln.strip() for ln in subject_text.splitlines() if ln.strip()]
-for ln in lines:
-    # Pattern: Name:1-25=25
-    m_range = re.match(r'^(.+?):\s*(\d+)\s*-\s*(\d+)\s*=\s*(\d+)$', ln)
-    # Pattern: English=30 (Direct)
-    m_direct = re.match(r'^(.+?)\s*=\s*(\d+)$', ln)
+st.write("Enter Details for each Subject:")
+
+# Smart Input Columns
+cols_head = st.columns([3, 1.5, 1.5, 1.5])
+cols_head[0].markdown("**Subject Name**")
+cols_head[1].markdown("**Start Q**")
+cols_head[2].markdown("**End Q**")
+cols_head[3].markdown("**Max Marks**")
+
+for i in range(int(num_subjects)):
+    c1, c2, c3, c4 = st.columns([3, 1.5, 1.5, 1.5])
     
-    if m_range:
+    # Defaults for first 2 subjects to match user habits
+    def_name = ""
+    def_s, def_e, def_m = 1, 25, 25
+    if i == 0: 
+        def_name = "Maths"
+    elif i == 1: 
+        def_name = "Reasoning"
+        def_s, def_e = 26, 50
+    
+    with c1: 
+        s_name = st.text_input(f"Name {i+1}", value=def_name, key=f"sub_n_{i}", label_visibility="collapsed", placeholder="e.g. Maths")
+    with c2: 
+        s_start = st.number_input(f"Start {i+1}", min_value=1, value=def_s, key=f"sub_s_{i}", label_visibility="collapsed")
+    with c3: 
+        s_end = st.number_input(f"End {i+1}", min_value=1, value=def_e, key=f"sub_e_{i}", label_visibility="collapsed")
+    with c4: 
+        s_max = st.number_input(f"Max {i+1}", min_value=1, value=def_m, key=f"sub_m_{i}", label_visibility="collapsed")
+    
+    if s_name:
         SUBJECT_CONFIG.append({
-            "name": m_range.group(1).strip(),
-            "range": (int(m_range.group(2)), int(m_range.group(3))),
-            "max": int(m_range.group(4))
-        })
-    elif m_direct:
-        SUBJECT_CONFIG.append({
-            "name": m_direct.group(1).strip(),
-            "range": None, # Direct column lookup logic if needed later
-            "max": int(m_direct.group(2))
+            "name": s_name,
+            "range": (s_start, s_end),
+            "max": s_max
         })
 
 # --- 2. UPLOAD ---
@@ -149,7 +166,7 @@ else:
         st.session_state['default_bg'].seek(0) # Reset pointer
         st.success("✅ Default Background Loaded!")
     else:
-        st.error("❌ Failed to download background.")
+        st.error("❌ Failed to download background. Check Drive Link.")
 
 # --- PROCESS ---
 if uploaded_csv is not None and bg_file_data is not None and SUBJECT_CONFIG:
@@ -173,7 +190,7 @@ if uploaded_csv is not None and bg_file_data is not None and SUBJECT_CONFIG:
 
         earned_cols_list, earned_index_map = detect_earned_cols(raw.columns)
 
-        # Calculate Totals
+        # Calculate Totals from Config
         TOTAL_MAX = sum([s['max'] for s in SUBJECT_CONFIG])
         
         def sum_subject_from_map(row, start_q, end_q):
