@@ -5,6 +5,7 @@ import math
 import io
 import requests
 import datetime
+from PIL import Image, UnidentifiedImageError # Added for validation
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.units import mm
@@ -16,7 +17,7 @@ from reportlab.lib.utils import ImageReader
 TG_LINK = "https://t.me/MurlidharAcademy"
 IG_LINK = "https://www.instagram.com/murlidhar_academy_official/"
 
-# ✅ UPDATED Google Drive Image ID (New Link provided)
+# ✅ UPDATED Google Drive Image ID (From your new link)
 DEFAULT_DRIVE_ID = "1QDEhCo7_ZEfZk8a2UhLWVngmidzfcvfi" 
 
 TITLE_Y_mm_from_top = 63.5
@@ -34,9 +35,16 @@ def get_drive_url(file_id):
 def download_default_bg(file_id):
     try:
         url = get_drive_url(file_id)
-        response = requests.get(url)
+        # Verify file is accessible
+        response = requests.get(url, allow_redirects=True)
         if response.status_code == 200:
-            return io.BytesIO(response.content)
+            # ✅ SAFETY CHECK: Validate it is actually an image
+            try:
+                img = Image.open(io.BytesIO(response.content))
+                img.verify() # Checks if it's a valid image
+                return io.BytesIO(response.content)
+            except Exception:
+                return None # Not an image (likely HTML error from Google)
         else:
             return None
     except:
@@ -72,7 +80,6 @@ def get_smart_row_color(p, is_even_row):
         return colors.HexColor("#FFFDE7") if is_even_row else colors.HexColor("#FFF9C4")
     return colors.HexColor("#FFEBEE") if is_even_row else colors.HexColor("#FFCDD2")
 
-# ✅ UPDATED SUMMARY COLORS
 SUMMARY_HEADER_COLORS = {
     "METRICS": colors.HexColor("#1976D2"),
     "SUBJECT AVERAGES": colors.HexColor("#8E24AA"),
@@ -81,7 +88,6 @@ SUMMARY_HEADER_COLORS = {
 }
 
 # ------------- STREAMLIT UI -------------
-# ✅ UPDATED Page Title
 st.set_page_config(page_title="Murlidhar Academy Weekly Result Report Generator", page_icon="📝", layout="centered")
 st.title("📝 Murlidhar Academy Weekly Result Report Generator")
 
@@ -92,7 +98,7 @@ c_title, c_file = st.columns(2)
 today_str = datetime.date.today().strftime('%d/%m/%Y')
 fname_date = datetime.date.today().strftime('%d-%m-%Y')
 
-# ✅ UPDATED Prefilled Text
+# Prefilled Text
 default_title = f"MB WEEKLY TEST RESULT | DATE: {today_str}"
 custom_title = c_title.text_input("Enter Main Title (Header)", default_title)
 
@@ -103,40 +109,50 @@ final_filename = output_filename_input.strip()
 if not final_filename.lower().endswith(".pdf"):
     final_filename += ".pdf"
 
-# ✅ UPDATED Smart Subject Setup
+# Smart Subject Setup
 st.subheader("Subject Setup")
-num_subjects = st.number_input("How many Subjects?", min_value=1, max_value=10, value=2)
+num_subjects = st.number_input("How many Subjects?", min_value=1, max_value=10, value=6) # Default 6 based on your usage
 
 SUBJECT_CONFIG = []
 st.write("Enter Details for each Subject:")
 
-# Smart Input Columns
 cols_head = st.columns([3, 1.5, 1.5, 1.5])
 cols_head[0].markdown("**Subject Name**")
 cols_head[1].markdown("**Start Q**")
 cols_head[2].markdown("**End Q**")
 cols_head[3].markdown("**Max Marks**")
 
+# Your specific defaults
+defaults = [
+    ("Maths", 1, 10, 10),
+    ("Reasoning", 11, 20, 10),
+    ("Science", 21, 30, 10),
+    ("History", 31, 40, 10),
+    ("Gujarati", 41, 50, 10),
+    ("CA", 51, 60, 10) # Fixed logical error: End Q must be > Start Q (51->60)
+]
+
 for i in range(int(num_subjects)):
     c1, c2, c3, c4 = st.columns([3, 1.5, 1.5, 1.5])
     
-    # Defaults for first 2 subjects to match user habits
-    def_name = ""
-    def_s, def_e, def_m = 1, 25, 25
-    if i == 0: 
-        def_name = "Maths"
-    elif i == 1: 
-        def_name = "Reasoning"
-        def_s, def_e = 26, 50
+    # Defaults logic
+    d_name, d_s, d_e, d_m = "", 1, 10, 10
+    if i < len(defaults):
+        d_name, d_s, d_e, d_m = defaults[i]
+    elif i > 0:
+        # Auto increment logic for new rows
+        prev_end = SUBJECT_CONFIG[-1]["range"][1] if SUBJECT_CONFIG else 0
+        d_s = prev_end + 1
+        d_e = d_s + 9
     
     with c1: 
-        s_name = st.text_input(f"Name {i+1}", value=def_name, key=f"sub_n_{i}", label_visibility="collapsed", placeholder="e.g. Maths")
+        s_name = st.text_input(f"Name {i+1}", value=d_name, key=f"sub_n_{i}", label_visibility="collapsed", placeholder="Subject")
     with c2: 
-        s_start = st.number_input(f"Start {i+1}", min_value=1, value=def_s, key=f"sub_s_{i}", label_visibility="collapsed")
+        s_start = st.number_input(f"Start {i+1}", min_value=1, value=d_s, key=f"sub_s_{i}", label_visibility="collapsed")
     with c3: 
-        s_end = st.number_input(f"End {i+1}", min_value=1, value=def_e, key=f"sub_e_{i}", label_visibility="collapsed")
+        s_end = st.number_input(f"End {i+1}", min_value=1, value=d_e, key=f"sub_e_{i}", label_visibility="collapsed")
     with c4: 
-        s_max = st.number_input(f"Max {i+1}", min_value=1, value=def_m, key=f"sub_m_{i}", label_visibility="collapsed")
+        s_max = st.number_input(f"Max {i+1}", min_value=1, value=d_m, key=f"sub_m_{i}", label_visibility="collapsed")
     
     if s_name:
         SUBJECT_CONFIG.append({
@@ -166,20 +182,29 @@ else:
         st.session_state['default_bg'].seek(0) # Reset pointer
         st.success("✅ Default Background Loaded!")
     else:
-        st.error("❌ Failed to download background. Check Drive Link.")
+        st.warning("⚠️ Background could not be loaded (Check Drive Permissions). Generating Plain PDF.")
 
 # --- PROCESS ---
-if uploaded_csv is not None and bg_file_data is not None and SUBJECT_CONFIG:
+if uploaded_csv is not None and SUBJECT_CONFIG:
     
     if st.button("Generate PDF 🚀", type="primary"):
         
-        # In-memory Image
-        TEMPLATE_IMG = ImageReader(io.BytesIO(bg_file_data))
+        # ✅ FIX: Handle case where image is corrupted or missing
+        TEMPLATE_IMG = None
+        if bg_file_data:
+            try:
+                # Validate one last time
+                test_img = Image.open(io.BytesIO(bg_file_data))
+                test_img.verify()
+                # Re-open for ReportLab
+                TEMPLATE_IMG = ImageReader(io.BytesIO(bg_file_data))
+            except Exception as e:
+                st.warning(f"⚠️ Image Error: {e}. Using white background.")
+                TEMPLATE_IMG = None
 
         raw = pd.read_csv(uploaded_csv)
         raw = sanitize_df(raw)
         
-        # Name detection
         fname_col = next((c for c in raw.columns if c.strip().lower() == "firstname"), None)
         lname_col = next((c for c in raw.columns if c.strip().lower() == "lastname"), None)
         if fname_col and lname_col:
@@ -190,7 +215,6 @@ if uploaded_csv is not None and bg_file_data is not None and SUBJECT_CONFIG:
 
         earned_cols_list, earned_index_map = detect_earned_cols(raw.columns)
 
-        # Calculate Totals from Config
         TOTAL_MAX = sum([s['max'] for s in SUBJECT_CONFIG])
         
         def sum_subject_from_map(row, start_q, end_q):
@@ -210,7 +234,6 @@ if uploaded_csv is not None and bg_file_data is not None and SUBJECT_CONFIG:
                 if subj['range'] and earned_index_map:
                     val = sum_subject_from_map(row, subj['range'][0], subj['range'][1])
                 else:
-                    # Direct lookup fallback
                     c_match = next((c for c in raw.columns if c.lower() == subj['name'].lower()), None)
                     val = float(row[c_match]) if c_match else 0
                 
@@ -238,7 +261,6 @@ if uploaded_csv is not None and bg_file_data is not None and SUBJECT_CONFIG:
         subj_keys = [s['name'] for s in SUBJECT_CONFIG]
         header = ["No","Rank","Student Name"] + subj_keys + ["Total","%"]
         
-        # Dynamic Widths
         max_name_len = max(df['Name'].astype(str).map(len).max(), 12)
         u_no, u_rank, u_name = 3.0, 3.0, max_name_len * 0.65
         u_subj, u_total, u_pct = 4.0, 4.5, 4.5
@@ -261,7 +283,9 @@ if uploaded_csv is not None and bg_file_data is not None and SUBJECT_CONFIG:
             return data
 
         def draw_main_page(page_df, page_index, total_pages):
-            c.drawImage(TEMPLATE_IMG, 0, 0, width=PAGE_W, height=PAGE_H)
+            if TEMPLATE_IMG:
+                c.drawImage(TEMPLATE_IMG, 0, 0, width=PAGE_W, height=PAGE_H)
+            
             c.setFont("Helvetica-Bold", 15)
             c.setFillColor(colors.black)
             c.drawCentredString(PAGE_W/2, TITLE_Y, custom_title)
@@ -270,6 +294,7 @@ if uploaded_csv is not None and bg_file_data is not None and SUBJECT_CONFIG:
             t = Table(data, colWidths=col_widths, repeatRows=1)
             
             f_size = 8.5 if len(subj_keys) <= 4 else 7.0
+            if len(subj_keys) >= 6: f_size = 6.0 # Adjust for 6 subjects
             
             style = TableStyle([
                 ('GRID',(0,0),(-1,-1),0.25,colors.HexColor("#666666")),
@@ -281,8 +306,8 @@ if uploaded_csv is not None and bg_file_data is not None and SUBJECT_CONFIG:
                 ('ALIGN',(2,1),(2,-1),'LEFT'),
                 ('VALIGN',(0,0),(-1,-1),'MIDDLE'),
                 ('FONTSIZE',(0,0),(-1,-1), f_size),
-                ('LEFTPADDING',(0,0),(-1,-1),4),
-                ('RIGHTPADDING',(0,0),(-1,-1),4),
+                ('LEFTPADDING',(0,0),(-1,-1),2),
+                ('RIGHTPADDING',(0,0),(-1,-1),2),
             ])
 
             for i in range(1, len(data)):
@@ -299,8 +324,10 @@ if uploaded_csv is not None and bg_file_data is not None and SUBJECT_CONFIG:
             tw, th = t.wrapOn(c, TABLE_WIDTH, PAGE_H)
             t.drawOn(c, (PAGE_W - tw) / 2, TABLE_TOP_Y - th)
 
-            c.linkURL(TG_LINK, (20*mm, 24*mm, 106*mm, 45*mm))
-            c.linkURL(IG_LINK, (110*mm, 24*mm, 190*mm, 45*mm))
+            if TEMPLATE_IMG:
+                c.linkURL(TG_LINK, (20*mm, 24*mm, 106*mm, 45*mm))
+                c.linkURL(IG_LINK, (110*mm, 24*mm, 190*mm, 45*mm))
+            
             c.setFont("Helvetica", 8)
             c.setFillColor(colors.black)
             c.drawRightString(PAGE_W - 10*mm, PAGE_NO_Y_mm*mm, f"Page {page_index+1}/{total_pages}")
@@ -314,7 +341,9 @@ if uploaded_csv is not None and bg_file_data is not None and SUBJECT_CONFIG:
             draw_main_page(df.iloc[p*ROWS_PER_PAGE:(p+1)*ROWS_PER_PAGE].reset_index(drop=True), p, total_pages)
 
         # --- SUMMARY PAGE ---
-        c.drawImage(TEMPLATE_IMG, 0, 0, width=PAGE_W, height=PAGE_H)
+        if TEMPLATE_IMG:
+            c.drawImage(TEMPLATE_IMG, 0, 0, width=PAGE_W, height=PAGE_H)
+        
         c.setFont("Helvetica-Bold", 15)
         c.setFillColor(colors.black)
         c.drawCentredString(PAGE_W/2, TITLE_Y, "SUMMARY & ANALYSIS OF THE TEST")
@@ -339,14 +368,12 @@ if uploaded_csv is not None and bg_file_data is not None and SUBJECT_CONFIG:
             avg = df[s['name']].mean() if s['name'] in df.columns else 0.0
             summary_rows.append([s['name'], f"{avg:.2f}/{s['max']}", "Avg. Subject Performance"])
 
-        # TOP 5 (Rank # Name)
         summary_rows.append(["TOP 5 RANKERS", "", ""])
         top5 = df.sort_values(by=["Total","Percentage"], ascending=[False, False]).head(5).reset_index(drop=True)
         for i, r in top5.iterrows(): 
             rem = ["Outstanding", "Excellent", "Very Good", "Good Effort", "Good Effort"][min(i,4)]
             summary_rows.append([f"#{i+1}  {r['Name']}", f"{int(r['Total'])}/{TOTAL_MAX}  ({float(r['Percentage']):.1f}%)", rem])
 
-        # BOTTOM 5 (Rank # Name)
         summary_rows.append(["BOTTOM 5 PERFORMERS", "", ""])
         bot5 = df.sort_values(by=["Total","Percentage"], ascending=[True, True]).head(5).reset_index(drop=True)
         for _, r in bot5.iterrows(): 
@@ -362,8 +389,8 @@ if uploaded_csv is not None and bg_file_data is not None and SUBJECT_CONFIG:
             ('FONT',(0,0),(-1,0),'Helvetica-Bold'),
             ('FONTSIZE',(0,0),(-1,-1),9),
             ('VALIGN',(0,0),(-1,-1),'MIDDLE'),
-            ('ALIGN',(0,0),(-1,0),'CENTER'), # Header Center
-            ('ALIGN',(0,1),(-1,-1),'LEFT'),   # All Data Left
+            ('ALIGN',(0,0),(-1,0),'CENTER'),
+            ('ALIGN',(0,1),(-1,-1),'LEFT'),
             ('LEFTPADDING',(0,0),(-1,-1),6),
         ])
 
