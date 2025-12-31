@@ -22,10 +22,10 @@ DEFAULT_DRIVE_ID = "1QDEhCo7_ZEfZk8a2UhLWVngmidzfcvfi"
 
 TITLE_Y_mm_from_top = 63.5
 TABLE_SPACE_AFTER_TITLE_mm = 16
-LEFT_MARGIN_mm = 15 # Margins slightly reduced to give more space for table
+LEFT_MARGIN_mm = 15
 RIGHT_MARGIN_mm = 15
 PAGE_NO_Y_mm = 8
-ROWS_PER_PAGE = 25 # Adjusted rows
+ROWS_PER_PAGE = 23 # ✅ Updated to 23
 
 # ------------- HELPERS -------------
 def get_drive_url(file_id):
@@ -72,7 +72,6 @@ def sanitize_df(df):
 
 # ✅ SMART COLOR LOGIC
 def get_smart_row_color(p, is_even_row):
-    # Lighter shades for background rows
     if p >= 80: 
         return colors.HexColor("#E8F5E9") if is_even_row else colors.HexColor("#C8E6C9")
     if p >= 50: 
@@ -249,11 +248,9 @@ if uploaded_csv is not None and SUBJECT_CONFIG:
         subj_keys = [s['name'] for s in SUBJECT_CONFIG]
         header = ["No","Rank","Student Name"] + subj_keys + ["Total","%"]
         
-        # ✅ Auto Width Logic Improved
         max_name_len = max(df['Name'].astype(str).map(len).max(), 12)
         
-        # Increased units for better spacing
-        u_no, u_rank, u_name = 3.2, 3.2, max_name_len * 0.8 # Name gets more space
+        u_no, u_rank, u_name = 3.2, 3.2, max_name_len * 0.8
         u_subj, u_total, u_pct = 4.2, 5.0, 5.0
         
         total_units = u_no + u_rank + u_name + (u_subj * len(subj_keys)) + u_total + u_pct
@@ -284,13 +281,12 @@ if uploaded_csv is not None and SUBJECT_CONFIG:
                 c.drawImage(TEMPLATE_IMG, 0, 0, width=PAGE_W, height=PAGE_H)
             
             c.setFont("Helvetica-Bold", 15)
-            c.setFillColor(colors.black)
+            c.setFillColor(colors.white) # ✅ Title White Color
             c.drawCentredString(PAGE_W/2, TITLE_Y, custom_title)
 
             data = build_table_data(page_df, page_index)
             t = Table(data, colWidths=col_widths, repeatRows=1)
             
-            # ✅ Bigger Fonts
             f_size = 9.5
             if len(subj_keys) > 4: f_size = 8.5
             if len(subj_keys) >= 6: f_size = 7.5
@@ -299,14 +295,16 @@ if uploaded_csv is not None and SUBJECT_CONFIG:
                 ('GRID',(0,0),(-1,-1),0.25,colors.HexColor("#666666")),
                 ('BACKGROUND',(0,0),(-1,0),colors.HexColor("#0f5f9a")),
                 ('TEXTCOLOR',(0,0),(-1,0),colors.white),
-                ('FONT',(0,0),(-1,0),'Helvetica-Bold'), # Header Bold
+                ('FONT',(0,0),(-1,0),'Helvetica-Bold'),
                 
-                # ✅ Alignment Fixes
-                ('ALIGN',(0,0),(-1,0),'CENTER'), # Header Center
-                ('ALIGN',(0,1),(-1,-1),'CENTER'), # All Data Center Default
-                ('ALIGN',(2,1),(2,-1),'LEFT'),   # Name Column Left (Index 2)
+                # ✅ HEADER CENTER ALIGNMENT
+                ('ALIGN',(0,0),(-1,0),'CENTER'),
+                ('VALIGN',(0,0),(-1,0),'MIDDLE'),
                 
-                # ✅ Vertical Center
+                # DATA ALIGNMENT
+                ('ALIGN',(0,1),(-1,-1),'CENTER'),
+                ('ALIGN',(2,1),(2,-1),'LEFT'),   # Name Left
+                
                 ('VALIGN',(0,0),(-1,-1),'MIDDLE'),
                 
                 ('FONTSIZE',(0,0),(-1,-1), f_size),
@@ -349,7 +347,7 @@ if uploaded_csv is not None and SUBJECT_CONFIG:
             c.drawImage(TEMPLATE_IMG, 0, 0, width=PAGE_W, height=PAGE_H)
         
         c.setFont("Helvetica-Bold", 15)
-        c.setFillColor(colors.black)
+        c.setFillColor(colors.white) # ✅ Title White Color
         c.drawCentredString(PAGE_W/2, TITLE_Y, "SUMMARY & ANALYSIS OF THE TEST")
 
         summary_rows = [["Section / Student", "Marks Details", "Remarks"]]
@@ -378,8 +376,6 @@ if uploaded_csv is not None and SUBJECT_CONFIG:
             rem = ["Outstanding", "Excellent", "Very Good", "Good Effort", "Good Effort"][min(i,4)]
             summary_rows.append([f"#{i+1}  {r['Name']}", f"{int(r['Total'])}/{TOTAL_MAX}  ({float(r['Percentage']):.1f}%)", rem])
 
-        # ✅ Bottom 5 Removed
-
         col1_w, col2_w = 75*mm, 45*mm
         consol_table = Table(summary_rows, colWidths=[col1_w, col2_w, TABLE_WIDTH - (col1_w + col2_w)], repeatRows=1)
         
@@ -405,14 +401,13 @@ if uploaded_csv is not None and SUBJECT_CONFIG:
                 consol_style.add('TEXTCOLOR',(0,i),(-1,i), colors.white)
                 consol_style.add('FONT',(0,i),(-1,i),'Helvetica-Bold')
             else:
-                # ✅ SUMMARY COLOR FIX
                 try:
                     val = str(row[1])
                     c_code = None
                     if '(' in val and '%' in val:
                         pct = float(val.split('(')[1].replace('%)',''))
                         c_code = "#C8E6C9" if pct>=80 else "#FFF9C4" if pct>=50 else "#FFCDD2"
-                    elif '/' in val: # Catch cases like "8.5/10"
+                    elif '/' in val:
                         nums = val.split('/')
                         if len(nums) == 2:
                             n, d = float(nums[0]), float(nums[1])
@@ -426,6 +421,11 @@ if uploaded_csv is not None and SUBJECT_CONFIG:
         consol_table.setStyle(consol_style)
         twc, thc = consol_table.wrap(TABLE_WIDTH, PAGE_H)
         consol_table.drawOn(c, (PAGE_W - twc)/2, TABLE_TOP_Y - thc)
+
+        # ✅ SUMMARY PAGE SOCIAL LINKS ADDED
+        if TEMPLATE_IMG:
+            c.linkURL(TG_LINK, (20*mm, 24*mm, 106*mm, 45*mm))
+            c.linkURL(IG_LINK, (110*mm, 24*mm, 190*mm, 45*mm))
 
         c.setFont("Helvetica", 8)
         c.setFillColor(colors.black)
